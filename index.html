@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostLink | Secure Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+    <div class="flex min-h-screen">
+        <div class="flex flex-col justify-center flex-1 px-8 py-12 sm:px-12 lg:flex-none lg:w-[480px] bg-white">
+            <div class="w-full max-w-sm mx-auto">
+                <div class="flex items-center gap-2 mb-10">
+                    <div class="bg-blue-600 p-2 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <span class="text-2xl font-bold text-slate-900 tracking-tight">PostLink</span>
+                </div>
+
+                <h2 class="text-3xl font-extrabold text-slate-900">Welcome back</h2>
+                <p class="mt-2 text-sm text-slate-500">Please enter your details to access your dashboard.</p>
+
+                <!-- Alert Messages -->
+                <div id="alertBox" class="mt-4 p-4 rounded-xl hidden" role="alert">
+                    <p id="alertMessage"></p>
+                </div>
+
+                <form id="loginForm" class="mt-8 space-y-6">
+                    <div>
+                        <label for="email" class="block text-sm font-semibold text-slate-700">Email Address</label>
+                        <input id="email" name="email" type="email" required 
+                            class="block w-full px-4 py-3 mt-1 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            placeholder="name@company.com">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between">
+                            <label for="otp" class="block text-sm font-semibold text-slate-700">OTP</label>
+                            <button type="button" id="sendOtpBtn" onclick="sendOTP(event)" class="text-sm font-semibold text-blue-600 hover:text-blue-500">
+                                Send OTP
+                            </button>
+                        </div>
+                        <input id="otp" name="otp" type="text" required 
+                            class="block w-full px-4 py-3 mt-1 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            placeholder="Enter 6-digit OTP" disabled>
+                    </div>
+
+                    <div class="flex items-center">
+                        <input id="remember-me" name="remember-me" type="checkbox" class="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500">
+                        <label for="remember-me" class="block ml-2 text-sm text-slate-600">Remember for 30 days</label>
+                    </div>
+
+                    <button type="submit" 
+                        class="flex justify-center w-full px-4 py-3 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all shadow-lg shadow-blue-200">
+                        Sign In
+                    </button>
+                </form>
+
+                <p class="mt-8 text-sm text-center text-slate-500">
+                    Don't have an account? 
+                    <a href="#" class="font-bold text-blue-600 hover:text-blue-500">Create account</a>
+                </p>
+            </div>
+        </div>
+
+        <div class="hidden lg:block relative flex-1">
+            <img src="indian-post.png" alt="Indian Post" class="absolute inset-0 object-cover w-full h-full">
+            
+            <div class="relative flex flex-col justify-end h-full p-16 text-white">
+                <blockquote class="space-y-4">
+                    <p class="text-3xl font-medium leading-tight">
+                        "The fastest way to manage your global shipments and track local deliveries in real-time."
+                    </p>
+                    <footer class="mt-4">
+                        <p class="text-lg font-bold">Logistics Excellence</p>
+                        <p class="text-blue-200">Global Postal Network</p>
+                    </footer>
+                </blockquote>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0/+esm'
+
+        // Initialize Supabase with proper session persistence
+        const SUPABASE_URL = 'https://lkwhbqcvrxuxdptzkzov.supabase.co'
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrd2hicWN2cnh1eGRwdHprem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxMjI0NDEsImV4cCI6MjA4MTY5ODQ0MX0.3VCd36NG4kZWZy2g4VGHcwEUrA6UwzmDdP1p408_sjw'
+        
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: true,
+                storage: null
+            }
+        })
+
+        let otpSent = false
+        let userEmail = ''
+        let isRedirecting = false
+
+        // Show alert message
+        function showAlert(message, type = 'success') {
+            const alertBox = document.getElementById('alertBox')
+            const alertMessage = document.getElementById('alertMessage')
+            
+            alertBox.className = `mt-4 p-4 rounded-xl ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`
+            alertMessage.textContent = message
+            alertBox.classList.remove('hidden')
+            
+            setTimeout(() => {
+                alertBox.classList.add('hidden')
+            }, 5000)
+        }
+
+        // Send OTP
+        window.sendOTP = async function(event) {
+            event.preventDefault()
+            const email = document.getElementById('email').value
+            const sendBtn = document.getElementById('sendOtpBtn')
+            
+            if (!email) {
+                showAlert('Please enter your email address', 'error')
+                return
+            }
+
+            sendBtn.textContent = 'Sending...'
+            sendBtn.disabled = true
+
+            try {
+                const { error } = await supabase.auth.signInWithOtp({
+                    email: email,
+                    options: {
+                        shouldCreateUser: true
+                    }
+                })
+
+                if (error) {
+                    showAlert('Error sending OTP: ' + error.message, 'error')
+                    sendBtn.textContent = 'Send OTP'
+                    sendBtn.disabled = false
+                } else {
+                    showAlert('OTP sent to your email! Check your inbox.', 'success')
+                    otpSent = true
+                    userEmail = email
+                    document.getElementById('otp').disabled = false
+                    document.getElementById('otp').focus()
+                    sendBtn.textContent = 'OTP Sent ✓'
+                }
+            } catch (error) {
+                showAlert('An error occurred: ' + error.message, 'error')
+                sendBtn.textContent = 'Send OTP'
+                sendBtn.disabled = false
+            }
+        }
+
+        // Handle form submission - Verify OTP
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault()
+
+            if (isRedirecting) return
+
+            const email = document.getElementById('email').value
+            const otp = document.getElementById('otp').value
+
+            if (!otpSent) {
+                showAlert('Please send OTP first', 'error')
+                return
+            }
+
+            if (!otp || otp.length !== 6 || isNaN(otp)) {
+                showAlert('Please enter a valid 6-digit OTP', 'error')
+                return
+            }
+
+            const submitBtn = document.querySelector('button[type="submit"]')
+            submitBtn.textContent = 'Verifying...'
+            submitBtn.disabled = true
+
+            try {
+                const { data, error } = await supabase.auth.verifyOtp({
+                    email: email,
+                    token: otp,
+                    type: 'email'
+                })
+
+                if (error) {
+                    showAlert('Invalid OTP: ' + error.message, 'error')
+                    submitBtn.textContent = 'Sign In'
+                    submitBtn.disabled = false
+                } else if (data.user) {
+                    isRedirecting = true
+                    showAlert('Login successful! Redirecting...', 'success')
+                    
+                    // Wait a moment to ensure session is saved
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html'
+                    }, 1000)
+                }
+            } catch (error) {
+                showAlert('An error occurred: ' + error.message, 'error')
+                submitBtn.textContent = 'Sign In'
+                submitBtn.disabled = false
+            }
+        })
+
+        // Check if user is already logged in
+        async function checkAuth() {
+            if (isRedirecting) return
+            
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession()
+                
+                if (session && session.user) {
+                    console.log('User already logged in, redirecting...')
+                    isRedirecting = true
+                    window.location.href = 'dashboard.html'
+                }
+            } catch (error) {
+                console.error('Auth check error:', error)
+            }
+        }
+
+        // Check on page load
+        checkAuth()
+    </script>
+
+</body>
+</html>
